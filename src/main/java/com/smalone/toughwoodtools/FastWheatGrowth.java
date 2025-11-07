@@ -1,4 +1,4 @@
-package com.example.fastwheat;
+package com.smalone.toughwoodtools;
 
 import org.bukkit.Material;
 import org.bukkit.block.Block;
