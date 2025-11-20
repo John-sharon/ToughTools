@@ -19,9 +19,17 @@ public class ToughTools extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
+        getConfig().addDefault("collapse-height", 6);
+        getConfig().addDefault("collapse-restore-delay", 200L);
+        getConfig().addDefault("collapse-cooldown-ms", 2000L);
+        getConfig().options().copyDefaults(true);
+        saveConfig();
+
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getPluginManager().registerEvents(new InstantWheatListener(this), this);
+        getServer().getPluginManager().registerEvents(new MiningCollapseListener(this), this);
         getLogger().info("InstantWheatListener enabled: wheat matures in ~1s after planting.");
+        getLogger().info("MiningCollapseListener enabled: unstable ceilings may collapse.");
         getLogger().info("ToughTools enabled: empowering wooden pickaxes and axes.");
     }
 
