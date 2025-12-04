@@ -61,8 +61,11 @@ public class GameplayListener implements Listener {
     public void onPlayerRespawn(PlayerRespawnEvent event) {
         Location bedSpawn = event.getPlayer().getBedSpawnLocation();
         if (bedSpawn != null) {
-            event.setRespawnLocation(bedSpawn);
-            return;
+            Block bed = bedSpawn.getWorld().getBlockAt(bedSpawn);
+            if (bed.getType() == Material.BED_BLOCK) {
+                event.setRespawnLocation(bedSpawn);
+                return;
+            }
         }
 
         World world = getMainWorld();

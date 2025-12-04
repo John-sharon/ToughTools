@@ -22,6 +22,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 public class MiningCollapseListener implements Listener {
 
     private final ToughTools plugin;
+    private final MiningSafetyManager safetyManager;
     private final Map<String, Long> cooldowns = new HashMap<String, Long>();
     private final long cooldownMillis;
     private static final EnumSet<Material> COLLAPSE_WHITELIST = EnumSet.of(
@@ -39,29 +40,28 @@ public class MiningCollapseListener implements Listener {
     public MiningCollapseListener(ToughTools plugin) {
         this.plugin = plugin;
         this.cooldownMillis = plugin.getConfig().getLong("collapse-cooldown-ms", 2000L);
+        this.safetyManager = new MiningSafetyManager(COLLAPSE_WHITELIST);
     }
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
         Block broken = event.getBlock();
-        if (!COLLAPSE_WHITELIST.contains(broken.getType())) {
-            return;
-        }
-        if (isProtected(broken)) {
-            return;
-        }
-
         Player player = event.getPlayer();
         if (isCoolingDown(player, broken.getLocation())) {
             return;
         }
 
-        if (hasSupports(broken)) {
-            return;
+        boolean triggered = safetyManager.handleShaftAndTunnel(broken);
+
+        if (!triggered && COLLAPSE_WHITELIST.contains(broken.getType()) && !isProtected(broken)
+                && !hasSupports(broken)) {
+            triggerCollapse(broken);
+            triggered = true;
         }
 
-        triggerCollapse(broken);
-        markCooldown(player, broken.getLocation());
+        if (triggered) {
+            markCooldown(player, broken.getLocation());
+        }
     }
 
     private boolean hasSupports(Block center) {
