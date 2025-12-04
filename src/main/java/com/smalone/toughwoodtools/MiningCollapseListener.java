@@ -1,5 +1,6 @@
 package com.smalone.toughwoodtools;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -23,6 +24,17 @@ public class MiningCollapseListener implements Listener {
     private final ToughTools plugin;
     private final Map<String, Long> cooldowns = new HashMap<String, Long>();
     private final long cooldownMillis;
+    private static final EnumSet<Material> COLLAPSE_WHITELIST = EnumSet.of(
+            Material.DIRT,
+            Material.STONE,
+            Material.COBBLESTONE,
+            Material.WOOD,
+            Material.COAL_ORE,
+            Material.IRON_ORE,
+            Material.GOLD_ORE,
+            Material.REDSTONE_ORE,
+            Material.DIAMOND_ORE
+    );
 
     public MiningCollapseListener(ToughTools plugin) {
         this.plugin = plugin;
@@ -32,6 +44,9 @@ public class MiningCollapseListener implements Listener {
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
         Block broken = event.getBlock();
+        if (!COLLAPSE_WHITELIST.contains(broken.getType())) {
+            return;
+        }
         if (isProtected(broken)) {
             return;
         }

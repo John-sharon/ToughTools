@@ -34,7 +34,7 @@ public class ToughTools extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(new GameplayListener(this), this);
         getLogger().info("InstantWheatListener enabled: wheat matures in ~1s after planting.");
         getLogger().info("MiningCollapseListener enabled: unstable ceilings may collapse.");
-        getLogger().info("ToughTools enabled: empowering wooden pickaxes and axes.");
+        getLogger().info("ToughTools enabled: empowering wooden axes.");
     }
 
     /**
@@ -109,7 +109,7 @@ public class ToughTools extends JavaPlugin implements Listener {
             return false;
         }
         Material type = item.getType();
-        return type == Material.WOOD_PICKAXE || type == Material.WOOD_AXE;
+        return type == Material.WOOD_AXE;
     }
 
     private void ensureEnchants(ItemStack item) {

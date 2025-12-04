@@ -17,8 +17,10 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
 import org.bukkit.event.inventory.CraftItemEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.block.Action;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
@@ -28,6 +30,9 @@ public class GameplayListener implements Listener {
     private final Random random = new Random();
     private final Set<String> platformBlocks = new HashSet<String>();
     private Location spectatorCenter;
+    private static final int SPECTATOR_PLATFORM_Y = 120;
+    private static final int SPECTATOR_PLATFORM_HALF_SIZE = 25; // results in 50x50 footprint
+    private static final int SPECTATOR_PLATFORM_HEIGHT = 3;
 
     public GameplayListener(ToughTools plugin) {
         this.plugin = plugin;
@@ -54,7 +59,9 @@ public class GameplayListener implements Listener {
 
     @EventHandler
     public void onPlayerRespawn(PlayerRespawnEvent event) {
-        if (event.isBedSpawn()) {
+        Location bedSpawn = event.getPlayer().getBedSpawnLocation();
+        if (bedSpawn != null) {
+            event.setRespawnLocation(bedSpawn);
             return;
         }
 
@@ -108,6 +115,27 @@ public class GameplayListener implements Listener {
         }
     }
 
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
+
+        Block clicked = event.getClickedBlock();
+        if (clicked == null || clicked.getType() != Material.BED_BLOCK) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+        Location bedLocation = clicked.getLocation().add(0.5D, 0.5D, 0.5D);
+        try {
+            player.setBedSpawnLocation(bedLocation, true);
+        } catch (NoSuchMethodError ignored) {
+            player.setBedSpawnLocation(bedLocation);
+        }
+        player.sendMessage("Your spawn point has been set to this bed.");
+    }
+
     private boolean isPlatformBlock(Block block) {
         String key = buildKey(block.getLocation());
         return platformBlocks.contains(key);
@@ -144,31 +172,24 @@ public class GameplayListener implements Listener {
         }
 
         Location spawn = world.getSpawnLocation();
-        int yBase = Math.max(10, world.getMaxHeight() - 5);
+        int yBase = Math.max(1, Math.min(SPECTATOR_PLATFORM_Y, world.getMaxHeight() - SPECTATOR_PLATFORM_HEIGHT));
         int centerX = spawn.getBlockX();
         int centerZ = spawn.getBlockZ();
 
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                setGlass(world, centerX + dx, yBase, centerZ + dz);
-                setGlass(world, centerX + dx, yBase + 3, centerZ + dz);
-            }
-        }
+        int startX = centerX - SPECTATOR_PLATFORM_HALF_SIZE;
+        int endX = centerX + SPECTATOR_PLATFORM_HALF_SIZE - 1;
+        int startZ = centerZ - SPECTATOR_PLATFORM_HALF_SIZE;
+        int endZ = centerZ + SPECTATOR_PLATFORM_HALF_SIZE - 1;
 
-        for (int dy = 1; dy <= 2; dy++) {
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dz = -1; dz <= 1; dz++) {
-                    if (dx == 0 && dz == 0) {
-                        continue;
-                    }
-                    if (dx == -1 || dx == 1 || dz == -1 || dz == 1) {
-                        setGlass(world, centerX + dx, yBase + dy, centerZ + dz);
-                    }
+        for (int dy = 0; dy < SPECTATOR_PLATFORM_HEIGHT; dy++) {
+            for (int x = startX; x <= endX; x++) {
+                for (int z = startZ; z <= endZ; z++) {
+                    setGlass(world, x, yBase + dy, z);
                 }
             }
         }
 
-        spectatorCenter = new Location(world, centerX + 0.5D, yBase + 1, centerZ + 0.5D);
+        spectatorCenter = new Location(world, centerX + 0.5D, yBase + (SPECTATOR_PLATFORM_HEIGHT / 2), centerZ + 0.5D);
         return spectatorCenter.clone();
     }
 
