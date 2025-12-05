@@ -77,21 +77,34 @@ public class MiningSafetyManager {
         boolean layer3Stable = isLayerStable(world, origin, 3, 3, 33);
         boolean layer4Stable = isLayerStable(world, origin, 4, 4, 55);
 
-        if (layer1Stable && layer2Stable && layer3Stable && layer4Stable) {
+        if (!layer1Stable || !layer2Stable || !layer3Stable || !layer4Stable) {
+            triggerSlopeCollapse(world, origin);
+
+            if (plugin.isDebugCaveIns() && player != null) {
+                player.sendMessage(ChatColor.GRAY + "[DEBUG] " + ChatColor.YELLOW
+                        + "Slope collapse triggered at "
+                        + origin.getBlockX() + ", " + origin.getBlockY() + ", " + origin.getBlockZ()
+                        + " (layers: "
+                        + "L1=" + layer1Stable + ", "
+                        + "L2=" + layer2Stable + ", "
+                        + "L3=" + layer3Stable + ", "
+                        + "L4=" + layer4Stable + ")");
+            }
+
+            return true;
+        }
+
+        boolean underFeet = isBlockUnderPlayer(player, origin, 2);
+        if (!underFeet) {
             return false;
         }
 
-        triggerSlopeCollapse(world, origin);
+        triggerVerticalShaftCollapse(world, player);
 
         if (plugin.isDebugCaveIns() && player != null) {
             player.sendMessage(ChatColor.GRAY + "[DEBUG] " + ChatColor.YELLOW
-                    + "Slope collapse triggered at "
-                    + origin.getBlockX() + ", " + origin.getBlockY() + ", " + origin.getBlockZ()
-                    + " (layers: "
-                    + "L1=" + layer1Stable + ", "
-                    + "L2=" + layer2Stable + ", "
-                    + "L3=" + layer3Stable + ", "
-                    + "L4=" + layer4Stable + ")");
+                    + "Vertical shaft collapse triggered at "
+                    + origin.getBlockX() + ", " + origin.getBlockY() + ", " + origin.getBlockZ());
         }
 
         return true;
@@ -319,6 +332,59 @@ public class MiningSafetyManager {
             spawnedSoFar++;
         }
         return spawnedSoFar;
+    }
+
+    private boolean isBlockUnderPlayer(Player player, Location origin, int maxDistance) {
+        if (player == null || origin == null) {
+            return false;
+        }
+        Location pl = player.getLocation();
+        if (pl.getWorld() == null || origin.getWorld() == null) {
+            return false;
+        }
+        if (!pl.getWorld().equals(origin.getWorld())) {
+            return false;
+        }
+
+        if (pl.getBlockX() != origin.getBlockX() || pl.getBlockZ() != origin.getBlockZ()) {
+            return false;
+        }
+
+        int dy = pl.getBlockY() - origin.getBlockY();
+        return dy >= 1 && dy <= maxDistance;
+    }
+
+    private void triggerVerticalShaftCollapse(World world, Player player) {
+        if (world == null || player == null) {
+            return;
+        }
+
+        Location pl = player.getLocation();
+        int cx = pl.getBlockX();
+        int cy = pl.getBlockY();
+        int cz = pl.getBlockZ();
+
+        int spawned = 0;
+
+        for (int dy = 1; dy <= 5; dy++) {
+            int y = cy + dy;
+            if (y >= world.getMaxHeight()) {
+                break;
+            }
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (spawned >= MAX_FALLING_BLOCKS) {
+                        return;
+                    }
+                    Block target = world.getBlockAt(cx + dx, y, cz + dz);
+                    if (target.getType() != Material.AIR) {
+                        continue;
+                    }
+                    spawnFallingBlock(world, target.getLocation().add(0.5D, 0.0D, 0.5D), Material.STONE, (byte) 0);
+                    spawned++;
+                }
+            }
+        }
     }
 
     private void spawnFallingBlock(World world, Location location, Material type, byte data) {

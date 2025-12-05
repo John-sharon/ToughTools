@@ -210,14 +210,14 @@ public class GameplayListener implements Listener {
     }
 
     private Location ensureSpectatorPlatform(World world) {
-        if (spectatorCenter != null) {
-            return spectatorCenter.clone();
-        }
-
         Location spawn = world.getSpawnLocation();
         int yFloor = Math.max(1, Math.min(SPECTATOR_PLATFORM_Y, world.getMaxHeight() - SPECTATOR_PLATFORM_HEIGHT));
         int centerX = spawn.getBlockX();
         int centerZ = spawn.getBlockZ();
+
+        if (spectatorCenter != null) {
+            return spectatorCenter.clone();
+        }
 
         int startX = centerX - SPECTATOR_PLATFORM_HALF_SIZE;
         int endX = centerX + SPECTATOR_PLATFORM_HALF_SIZE - 1;
