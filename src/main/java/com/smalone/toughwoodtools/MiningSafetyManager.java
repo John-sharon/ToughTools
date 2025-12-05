@@ -15,8 +15,15 @@ public class MiningSafetyManager {
 
     private final ToughTools plugin;
     private final Set<Material> collapseWhitelist;
+    private static final EnumSet<Material> ORE_TYPES = EnumSet.of(
+            Material.COAL_ORE,
+            Material.IRON_ORE,
+            Material.GOLD_ORE,
+            Material.REDSTONE_ORE,
+            Material.DIAMOND_ORE,
+            Material.LAPIS_ORE
+    );
     private static final int REQUIRED_AIR_RUN = 6;
-    private static final int MAX_VERTICAL_HEIGHT = 5;
     private static final int MAX_HORIZONTAL_HEIGHT = 6;
     private static final int MAX_HORIZONTAL_DISTANCE = 6;
     private static final int MAX_FALLING_BLOCKS = 90;
@@ -27,12 +34,27 @@ public class MiningSafetyManager {
     }
 
     public boolean handleShaftAndTunnel(Block broken, Player player) {
-        if (!collapseWhitelist.contains(broken.getType())) {
+        Material brokenType = broken.getType();
+        if (!collapseWhitelist.contains(brokenType)) {
             return false;
         }
 
-        Location origin = broken.getLocation();
+        // Allow ores to be mined without vertical collapse penalties
+        if (ORE_TYPES.contains(brokenType)) {
+            World world = broken.getWorld();
+            Location origin = broken.getLocation();
+            boolean horizontalTriggered = triggerHorizontalIfNeeded(world, origin, Axis.X, player)
+                    || triggerHorizontalIfNeeded(world, origin, Axis.Z, player);
+            return horizontalTriggered;
+        }
+
         World world = broken.getWorld();
+        Location origin = broken.getLocation();
+
+        if (isDeepUnderground(origin, 6) && isCaveCeilingBreak(broken)) {
+            triggerCaveCeilingCollapse(world, origin, brokenType);
+            return true;
+        }
 
         if (triggerVerticalIfNeeded(world, origin, player)) {
             return true;
@@ -50,14 +72,28 @@ public class MiningSafetyManager {
             return false;
         }
 
-        int airAbove = countVerticalAirAbove(world, origin, REQUIRED_AIR_RUN);
-        if (airAbove < REQUIRED_AIR_RUN) {
+        boolean layer1Stable = isLayerStable(world, origin, 1, 1, 6);
+        boolean layer2Stable = isLayerStable(world, origin, 2, 2, 17);
+        boolean layer3Stable = isLayerStable(world, origin, 3, 3, 33);
+        boolean layer4Stable = isLayerStable(world, origin, 4, 4, 55);
+
+        if (layer1Stable && layer2Stable && layer3Stable && layer4Stable) {
             return false;
         }
 
-        int surfaceY = world.getHighestBlockYAt(origin.getBlockX(), origin.getBlockZ());
-        int depthBelowSurface = surfaceY - origin.getBlockY();
-        triggerVerticalCaveIn(world, origin, player, airAbove, depthBelowSurface);
+        triggerSlopeCollapse(world, origin);
+
+        if (plugin.isDebugCaveIns() && player != null) {
+            player.sendMessage(ChatColor.GRAY + "[DEBUG] " + ChatColor.YELLOW
+                    + "Slope collapse triggered at "
+                    + origin.getBlockX() + ", " + origin.getBlockY() + ", " + origin.getBlockZ()
+                    + " (layers: "
+                    + "L1=" + layer1Stable + ", "
+                    + "L2=" + layer2Stable + ", "
+                    + "L3=" + layer3Stable + ", "
+                    + "L4=" + layer4Stable + ")");
+        }
+
         return true;
     }
 
@@ -87,24 +123,30 @@ public class MiningSafetyManager {
         return y <= surfaceY - minDepth;
     }
 
-    private int countVerticalAirAbove(World world, Location origin, int maxLength) {
-        int count = 0;
-        int originY = origin.getBlockY();
-        int x = origin.getBlockX();
-        int z = origin.getBlockZ();
+    private boolean isCaveCeilingBreak(Block broken) {
+        World world = broken.getWorld();
+        Location loc = broken.getLocation();
+        Block below = world.getBlockAt(loc.getBlockX(), loc.getBlockY() - 1, loc.getBlockZ());
+        return below.getType() == Material.AIR;
+    }
 
-        for (int dy = 1; dy <= maxLength; dy++) {
-            int y = originY + dy;
-            if (y >= world.getMaxHeight()) {
-                break;
+    private boolean isLayerStable(World world, Location origin, int yOffset, int radius, int requiredAir) {
+        int ox = origin.getBlockX();
+        int oy = origin.getBlockY() + yOffset;
+        int oz = origin.getBlockZ();
+
+        int airCount = 0;
+
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                Block block = world.getBlockAt(ox + dx, oy, oz + dz);
+                if (block.getType() == Material.AIR) {
+                    airCount++;
+                }
             }
-            if (world.getBlockAt(x, y, z).getType() != Material.AIR) {
-                break;
-            }
-            count++;
         }
 
-        return count;
+        return airCount >= requiredAir;
     }
 
     private HorizontalRun countHorizontalAirRun(World world, Location origin, Axis axis, int maxLength) {
@@ -155,31 +197,72 @@ public class MiningSafetyManager {
         return false;
     }
 
-    private void triggerVerticalCaveIn(World world, Location center, Player player, int airRunLength, int depthBelowSurface) {
+    private void triggerCaveCeilingCollapse(World world, Location origin, Material fillType) {
+        int ox = origin.getBlockX();
+        int oy = origin.getBlockY();
+        int oz = origin.getBlockZ();
+
         int spawned = 0;
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                for (int dy = 1; dy <= MAX_VERTICAL_HEIGHT; dy++) {
+
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                int airCount = 0;
+
+                for (int dy = 1; dy <= 5; dy++) {
+                    int y = oy - dy;
+                    if (y < 0) {
+                        break;
+                    }
+                    Block target = world.getBlockAt(ox + dx, y, oz + dz);
+                    if (target.getType() == Material.AIR) {
+                        airCount++;
+                    }
+                }
+
+                for (int i = 0; i < airCount; i++) {
                     if (spawned >= MAX_FALLING_BLOCKS) {
                         return;
                     }
-                    int x = center.getBlockX() + dx;
-                    int y = center.getBlockY() + dy;
-                    int z = center.getBlockZ() + dz;
-                    Block target = world.getBlockAt(x, y, z);
-                    if (target.getType() != Material.AIR) {
-                        continue;
-                    }
-                    spawnFallingBlock(world, target.getLocation(), Material.DIRT, (byte) 0);
+                    Location spawnLoc = new Location(world, ox + dx + 0.5D, oy - 0.5D + i, oz + dz + 0.5D);
+                    spawnFallingBlock(world, spawnLoc, fillType, (byte) 0);
                     spawned++;
                 }
             }
         }
+    }
 
-        if (plugin.isDebugCaveIns() && player != null) {
-            player.sendMessage(ChatColor.GRAY + "[DEBUG] " + ChatColor.YELLOW
-                    + "Vertical cave-in triggered at " + center.getBlockX() + ", " + center.getBlockY() + ", "
-                    + center.getBlockZ() + " (depth=" + depthBelowSurface + ", airRun=" + airRunLength + ")");
+    private void triggerSlopeCollapse(World world, Location origin) {
+        int ox = origin.getBlockX();
+        int oy = origin.getBlockY();
+        int oz = origin.getBlockZ();
+
+        int spawned = 0;
+
+        for (int layer = 1; layer <= 4; layer++) {
+            int radius = layer;
+            int y = oy + layer;
+
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (spawned >= MAX_FALLING_BLOCKS) {
+                        return;
+                    }
+                    Block block = world.getBlockAt(ox + dx, y, oz + dz);
+                    Material type = block.getType();
+                    if (type == Material.AIR) {
+                        continue;
+                    }
+                    if (!collapseWhitelist.contains(type)) {
+                        continue;
+                    }
+
+                    byte data = block.getData();
+                    block.setType(Material.AIR);
+                    Location spawnLoc = new Location(world, ox + dx + 0.5D, y + 0.0D, oz + dz + 0.5D);
+                    spawnFallingBlock(world, spawnLoc, type, data);
+                    spawned++;
+                }
+            }
         }
     }
 

@@ -59,10 +59,11 @@ public class GameplayListener implements Listener {
 
     @EventHandler
     public void onPlayerRespawn(PlayerRespawnEvent event) {
-        Location bedSpawn = event.getPlayer().getBedSpawnLocation();
+        Player player = event.getPlayer();
+        Location bedSpawn = player.getBedSpawnLocation();
         if (bedSpawn != null) {
-            Block bed = bedSpawn.getWorld().getBlockAt(bedSpawn);
-            if (bed.getType() == Material.BED_BLOCK) {
+            Block bedBlock = findNearbyBedBlock(bedSpawn, 2);
+            if (bedBlock != null) {
                 event.setRespawnLocation(bedSpawn);
                 return;
             }
@@ -76,7 +77,7 @@ public class GameplayListener implements Listener {
         Location platform = ensureSpectatorPlatform(world);
         if (platform != null) {
             event.setRespawnLocation(platform);
-            giveSpectatorKit(event.getPlayer());
+            giveSpectatorKit(player);
         }
     }
 
@@ -170,6 +171,28 @@ public class GameplayListener implements Listener {
         inventory.addItem(new ItemStack(Material.BED, 1));
     }
 
+    private Block findNearbyBedBlock(Location loc, int radius) {
+        if (loc == null || loc.getWorld() == null) {
+            return null;
+        }
+        World world = loc.getWorld();
+        int ox = loc.getBlockX();
+        int oy = loc.getBlockY();
+        int oz = loc.getBlockZ();
+
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    Block block = world.getBlockAt(ox + dx, oy + dy, oz + dz);
+                    if (block.getType() == Material.BED_BLOCK) {
+                        return block;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     private void giveSpectatorKit(Player player) {
         if (player == null) {
             return;
@@ -192,7 +215,7 @@ public class GameplayListener implements Listener {
         }
 
         Location spawn = world.getSpawnLocation();
-        int yBase = Math.max(1, Math.min(SPECTATOR_PLATFORM_Y, world.getMaxHeight() - SPECTATOR_PLATFORM_HEIGHT));
+        int yFloor = Math.max(1, Math.min(SPECTATOR_PLATFORM_Y, world.getMaxHeight() - SPECTATOR_PLATFORM_HEIGHT));
         int centerX = spawn.getBlockX();
         int centerZ = spawn.getBlockZ();
 
@@ -201,8 +224,7 @@ public class GameplayListener implements Listener {
         int startZ = centerZ - SPECTATOR_PLATFORM_HALF_SIZE;
         int endZ = centerZ + SPECTATOR_PLATFORM_HALF_SIZE - 1;
 
-        int yFloor = yBase;
-        int yRoof = yBase + SPECTATOR_PLATFORM_HEIGHT - 1;
+        int yRoof = yFloor + SPECTATOR_PLATFORM_HEIGHT - 1;
 
         for (int x = startX; x <= endX; x++) {
             for (int z = startZ; z <= endZ; z++) {
@@ -227,7 +249,7 @@ public class GameplayListener implements Listener {
             }
         }
 
-        spectatorCenter = new Location(world, centerX + 0.5D, yBase + (SPECTATOR_PLATFORM_HEIGHT / 2), centerZ + 0.5D);
+        spectatorCenter = new Location(world, centerX + 0.5D, yFloor + 1, centerZ + 0.5D);
         return spectatorCenter.clone();
     }
 
