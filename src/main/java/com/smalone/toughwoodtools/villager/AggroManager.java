@@ -4,6 +4,7 @@ package com.smalone.toughwoodtools.villager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
@@ -26,12 +27,22 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AggroManager {
 
     private final JavaPlugin plugin;
+    private final FileConfiguration config;
     private final ConcurrentHashMap<UUID, AggroState> aggroMap = new ConcurrentHashMap<>();
     private BukkitTask task;
     private long tickCounter = 0L;
 
     public AggroManager(JavaPlugin plugin) {
+        this(plugin, plugin.getConfig());
+    }
+
+    /**
+     * Alternate constructor that accepts an explicit configuration object.
+     * Useful if your main class stores config differently.
+     */
+    public AggroManager(JavaPlugin plugin, FileConfiguration config) {
         this.plugin = plugin;
+        this.config = config;
     }
 
     public void start() {
@@ -221,7 +232,8 @@ public class AggroManager {
 
     private boolean getConfigBoolean(String path, boolean def) {
         try {
-            return plugin.getConfig().getBoolean(path, def);
+            if (config != null) return config.getBoolean(path, def);
+            return def;
         } catch (Exception ignored) {
             return def;
         }
@@ -229,7 +241,8 @@ public class AggroManager {
 
     private String getConfigString(String path, String def) {
         try {
-            return plugin.getConfig().getString(path, def);
+            if (config != null) return config.getString(path, def);
+            return def;
         } catch (Exception ignored) {
             return def;
         }
@@ -237,7 +250,8 @@ public class AggroManager {
 
     private int getConfigInt(String path, int def) {
         try {
-            return plugin.getConfig().getInt(path, def);
+            if (config != null) return config.getInt(path, def);
+            return def;
         } catch (Exception ignored) {
             return def;
         }
@@ -245,11 +259,14 @@ public class AggroManager {
 
     private double getConfigDouble(String path, double def) {
         try {
-            Object v = plugin.getConfig().get(path);
-            if (v instanceof Number) {
-                return ((Number) v).doubleValue();
+            if (config != null) {
+                Object v = config.get(path);
+                if (v instanceof Number) {
+                    return ((Number) v).doubleValue();
+                }
+                return config.getDouble(path, def);
             }
-            return plugin.getConfig().getDouble(path, def);
+            return def;
         } catch (Exception ignored) {
             return def;
         }
