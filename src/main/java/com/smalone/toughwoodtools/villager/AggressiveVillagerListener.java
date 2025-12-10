@@ -8,18 +8,18 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
-
-import com.smalone.toughwoodtools.ToughTools;
+import org.bukkit.plugin.java.JavaPlugin;
 
 /**
  * Listener that triggers villager aggression according to plugin config.
+ * This class does NOT reference any project-specific main-class.
  */
 public class AggressiveVillagerListener implements Listener {
 
-    private final ToughTools plugin;
+    private final JavaPlugin plugin;
     private final AggroManager manager;
 
-    public AggressiveVillagerListener(ToughTools plugin, AggroManager manager) {
+    public AggressiveVillagerListener(JavaPlugin plugin, AggroManager manager) {
         this.plugin = plugin;
         this.manager = manager;
     }
